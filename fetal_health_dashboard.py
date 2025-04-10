@@ -20,7 +20,7 @@ st.markdown("Enter maternal and fetal health details to assess potential risks:"
 model = joblib.load("fetal_health_model.pkl")
 encoder = joblib.load("label_encoder.pkl")
 
-# Form inputs (keep your existing form code exactly as is)
+# Form inputs
 with st.form("fetal_form"):
     col1, col2 = st.columns(2)
     
@@ -82,20 +82,21 @@ if submit:
     
     # Make prediction
     prediction = model.predict(df_input)[0]
-    proba = model.predict_proba(df_input)[0]
     label = encoder.inverse_transform([prediction])[0]
     
     # Display results
     st.markdown("---")
     st.subheader("🩺 Prediction Result")
-    st.success(f"Predicted Status: **{label}**")
     
-    # Display probabilities
-    st.write("### Prediction Probabilities:")
-    proba_display = {encoder.classes_[i]: f"{proba[i]*100:.2f}%" for i in range(len(proba))}
-    st.write(proba_display)
+    # Show colored status based on prediction
+    if label == "Healthy":
+        st.success(f"Predicted Status: ✅ {label}")
+    elif label == "Moderate Risk":
+        st.warning(f"Predicted Status: ⚠️ {label}")
+    else:  # High Risk
+        st.error(f"Predicted Status: ❗ {label}")
     
-    # Get top 5 most important features (using model's feature importances)
+    # Get top 5 most important features
     feature_importance = pd.DataFrame({
         "Feature": model.feature_names_in_,
         "Importance": model.feature_importances_
@@ -106,17 +107,27 @@ if submit:
     
     # Recommendations
     st.markdown("### 💡 Recommendations:")
-    if label != "Healthy":
-        st.warning("⚠️ Risk detected! Please consult your obstetrician.")
+    if label == "Healthy":
+        st.success("Continue routine prenatal care with your doctor")
         recommendations = [
-            "Schedule a targeted ultrasound",
-            "Monitor hormone levels regularly",
-            "Maintain a healthy diet and exercise",
-            "Limit stress and avoid harmful exposure"
+            "Maintain regular checkups",
+            "Follow a balanced diet",
+            "Get moderate exercise"
         ]
-    else:
-        st.success("✅ Everything looks normal. Continue regular prenatal checkups.")
-        recommendations = ["Continue routine prenatal care"]
+    elif label == "Moderate Risk":
+        st.warning("Please schedule additional monitoring")
+        recommendations = [
+            "Consult with your obstetrician immediately",
+            "Consider additional diagnostic tests",
+            "Monitor symptoms closely"
+        ]
+    else:  # High Risk
+        st.error("Urgent medical attention required")
+        recommendations = [
+            "Seek immediate medical care",
+            "Hospitalization may be necessary",
+            "Specialized monitoring required"
+        ]
     
     for r in recommendations:
         st.markdown(f"- {r}")
@@ -125,9 +136,6 @@ if submit:
     report = f"""Fetal Health Prediction Report
     
 Prediction: {label}
-    
-Probabilities:
-{proba_display}
     
 Top Affecting Factors:
 {feature_importance.head(5).to_string(index=False)}
