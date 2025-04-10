@@ -59,7 +59,7 @@ if submit:
     smoking_map = {"No": 0, "Light": 1, "Heavy": 2}
     binary_map = {"No": 0, "Yes": 1}
  
-    input_data = np.array([[
+    df_input = pd.DataFrame([[
         maternal_age, bmi,
         binary_map[hypertension], binary_map[diabetes], binary_map[family_history],
         binary_map[family_congenital], gestational_age, fetal_heart_rate,
@@ -67,9 +67,7 @@ if submit:
         smoking_map[smoking], binary_map[alcohol], pre_preg_weight, weight_gain,
         gravida, parity, binary_map[multiple_preg], binary_map[history_miscarriage],
         binary_map[ivf]
-    ]])
- 
-    df_input = pd.DataFrame(input_data, columns=[
+    ]], columns=[
         'Maternal_Age', 'BMI', 'Hypertension', 'Diabetes', 'Family_History',
         'Family_History_Congenital_Disorder', 'Gestational_Age', 'Fetal_Heart_Rate',
         'Head_Circumference', 'Abdominal_Circumference', 'Femur_Length', 'AFP',
@@ -77,17 +75,17 @@ if submit:
         'Pre_Pregnancy_Weight', 'Weight_Gain_During_Pregnancy', 'Gravida', 'Parity',
         'Multiple_Pregnancy', 'History_of_Miscarriage', 'IVF_Conception'
     ])
-    # Only assign if lengths match
-    if hasattr(model, "feature_names_in_") and len(df_input.columns) == len(model.feature_names_in_):
-        df_input.columns = model.feature_names_in_
-    else:
-        st.error("🚨 Feature mismatch: Please check if model and input features align.")
-        st.stop()
-
-    # Debug prints to check column names
-    st.write("Model expects:", list(model.feature_names_in_))
-    st.write("Your input columns:", df_input.columns.tolist())
-
+    model_features = model.feature_names_in_
+    
+    # Add missing features with default values (0 for numerical, you can adjust as needed)
+    for feature in model_features:
+        if feature not in df_input.columns:
+            df_input[feature] = 0  # Default value for missing features
+    
+    # Reorder columns to exactly match model's expected order
+    df_input = df_input[model_features]
+    
+    # Now you can proceed with prediction
     prediction = model.predict(df_input)[0]
     proba = model.predict_proba(df_input)[0]
     label = encoder.inverse_transform([prediction])[0]
