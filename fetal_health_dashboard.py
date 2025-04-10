@@ -90,11 +90,11 @@ if submit:
     
     # Show colored status based on prediction
     if label == "Healthy":
-        st.success(f"Predicted Status: ✅ Healthy {label}")
+        st.success(f"Predicted Status: ✅ Healthy")
     elif label == "Moderate Risk":
-        st.warning(f"Predicted Status: ⚠️ Moderate {label}")
+        st.warning(f"Predicted Status: ⚠️ Moderate")
     else:  # High Risk
-        st.error(f"Predicted Status: ❗High Risk {label}")
+        st.error(f"Predicted Status: ❗High Risk")
     
     # Get top 5 most important features
     feature_importance = pd.DataFrame({
