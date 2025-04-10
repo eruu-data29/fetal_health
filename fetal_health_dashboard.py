@@ -1,29 +1,29 @@
 import streamlit as st
 import numpy as np
 import joblib
-import shap
 import pandas as pd
 from io import BytesIO
- 
-#Set config with custom page title, layout, logo and favicon
+
+# Set page config
 st.set_page_config(
     page_title="Fetal Health Risk Predictor",
     layout="wide",
     page_icon="🍼"
 )
-# Logo (you can upload and use your own logo URL or path)
+
+# Logo and title
 st.image("https://cdn-icons-png.flaticon.com/512/3943/3943780.png", width=100)
 st.title("🤰 Fetal Health Risk Predictor Dashboard")
-st.markdown("Enter maternal and fetal health details to assess potential risks:") 
+st.markdown("Enter maternal and fetal health details to assess potential risks:")
+
 # Load model and label encoder
 model = joblib.load("fetal_health_model.pkl")
 encoder = joblib.load("label_encoder.pkl")
-explainer = shap.Explainer(model)
- 
-# Form inputs
+
+# Form inputs (keep your existing form code exactly as is)
 with st.form("fetal_form"):
     col1, col2 = st.columns(2)
- 
+    
     with col1:
         maternal_age = st.slider("Maternal Age", 15, 50, 30)
         bmi = st.slider("BMI", 10.0, 50.0, 22.0)
@@ -37,7 +37,7 @@ with st.form("fetal_form"):
         hcg = st.number_input("hCG Level", 0.0, 1000.0, 150.0)
         estriol = st.number_input("Estriol Level", 0.0, 100.0, 10.0)
         inhibin_a = st.number_input("Inhibin A", 0.0, 1000.0, 200.0)
- 
+    
     with col2:
         abdominal_circ = st.slider("Abdominal Circumference (cm)", 10, 40, 30)
         head_circ = st.slider("Head Circumference (cm)", 10, 40, 30)
@@ -51,15 +51,15 @@ with st.form("fetal_form"):
         multiple_preg = st.selectbox("Multiple Pregnancy", ["No", "Yes"])
         history_miscarriage = st.selectbox("History of Miscarriage", ["No", "Yes"])
         ivf = st.selectbox("IVF Conception", ["No", "Yes"])
- 
+    
     submit = st.form_submit_button("🩺 Predict Fetal Health Status")
- 
+
 if submit:
     # Encode inputs
     smoking_map = {"No": 0, "Light": 1, "Heavy": 2}
     binary_map = {"No": 0, "Yes": 1}
- 
-    df_input = pd.DataFrame([[
+    
+    input_data = np.array([[
         maternal_age, bmi,
         binary_map[hypertension], binary_map[diabetes], binary_map[family_history],
         binary_map[family_congenital], gestational_age, fetal_heart_rate,
@@ -67,119 +67,77 @@ if submit:
         smoking_map[smoking], binary_map[alcohol], pre_preg_weight, weight_gain,
         gravida, parity, binary_map[multiple_preg], binary_map[history_miscarriage],
         binary_map[ivf]
-    ]], columns=[
-        'Maternal_Age', 'BMI', 'Hypertension', 'Diabetes', 'Family_History',
-        'Family_History_Congenital_Disorder', 'Gestational_Age', 'Fetal_Heart_Rate',
-        'Head_Circumference', 'Abdominal_Circumference', 'Femur_Length', 'AFP',
-        'hCG', 'Estriol', 'Inhibin_A', 'Smoking_Status', 'Alcohol_Consumption',
-        'Pre_Pregnancy_Weight', 'Weight_Gain_During_Pregnancy', 'Gravida', 'Parity',
-        'Multiple_Pregnancy', 'History_of_Miscarriage', 'IVF_Conception'
-    ])
-    model_features = model.feature_names_in_
+    ]])
     
-    # Add missing features with default values (0 for numerical, you can adjust as needed)
-    for feature in model_features:
+    # Create DataFrame with correct feature names
+    df_input = pd.DataFrame(input_data, columns=model.feature_names_in_[:24])
+    
+    # Add missing features with default values (0)
+    for feature in model.feature_names_in_:
         if feature not in df_input.columns:
-            df_input[feature] = 0  # Default value for missing features
+            df_input[feature] = 0
     
-    # Reorder columns to exactly match model's expected order
-    df_input = df_input[model_features]
+    # Reorder columns to match model
+    df_input = df_input[model.feature_names_in_]
     
-    # Now you can proceed with prediction
+    # Make prediction
     prediction = model.predict(df_input)[0]
     proba = model.predict_proba(df_input)[0]
-    
-    # Get proper class names
-    class_names = encoder.classes_
-    label = class_names[prediction]
+    label = encoder.inverse_transform([prediction])[0]
     
     # Display results
     st.markdown("---")
     st.subheader("🩺 Prediction Result")
-    st.success(f"🔍 Predicted Status: **{label}**")
+    st.success(f"Predicted Status: **{label}**")
     
-    # Probabilities with proper names
-    st.write("### 🔢 Prediction Probabilities:")
-    proba_dict = {class_names[i]: float(proba[i]) for i in range(len(proba))}
-    st.write({k: f"{v*100:.2f}%" for k, v in proba_dict.items()})
+    # Display probabilities
+    st.write("### Prediction Probabilities:")
+    proba_display = {encoder.classes_[i]: f"{proba[i]*100:.2f}%" for i in range(len(proba))}
+    st.write(proba_display)
     
-    # SHAP explanation
-    shap_values = explainer(df_input)
-    shap_impacts = np.array(shap_values.values[0, :]).flatten()
-    shap_df = pd.DataFrame({
-        "Feature": df_input.columns.tolist(),
-        "SHAP Impact": shap_impacts
-    })
-    shap_df["Absolute Impact"] = shap_df["SHAP Impact"].abs()
-    shap_df = shap_df.sort_values("Absolute Impact", ascending=False).drop("Absolute Impact", axis=1)
+    # Get top 5 most important features (using model's feature importances)
+    feature_importance = pd.DataFrame({
+        "Feature": model.feature_names_in_,
+        "Importance": model.feature_importances_
+    }).sort_values("Importance", ascending=False)
     
-    st.write("### 🔍 Top Risk Factors:")
-    st.write(shap_df.head(5))
- 
-    st.markdown("---")
-    st.subheader("🩺 Prediction Result")
-    st.success(f"🔍 Predicted Status: **{label}**")
-
-    # Display probabilities with proper class names
-    st.write("### 🔢 Prediction Probabilities:")
-    proba_dict = {class_names[i]: float(proba[i]) for i in range(len(proba))}
-    st.write({k: f"{v*100:.2f}%" for k, v in proba_dict.items()})
-    shap_values = explainer(df_input)
-
-    # Convert to proper format for DataFrame
-    shap_impacts = np.array(shap_values.values[0, :]).flatten()  # Ensure it's 1D array
-    features = df_input.columns.tolist()
-
-    # Create DataFrame and sort by absolute impact
-    shap_df = pd.DataFrame({
-        "Feature": features,
-        "SHAP Impact": shap_impacts
-    })
-    shap_df["Absolute Impact"] = shap_df["SHAP Impact"].abs()
-    shap_df = shap_df.sort_values("Absolute Impact", ascending=False).drop("Absolute Impact", axis=1)
-    st.write("### 🔍 Top Risk Factors:")
-    st.write(shap_df.head(5))
+    st.write("### Top Affecting Factors:")
+    st.write(feature_importance.head(5))
     
- 
     # Recommendations
     st.markdown("### 💡 Recommendations:")
     if label != "Healthy":
         st.warning("⚠️ Risk detected! Please consult your obstetrician.")
         recommendations = [
-            "Schedule a targeted ultrasound.",
-            "Monitor hormone levels regularly.",
-            "Maintain a healthy diet and exercise.",
-            "Limit stress and avoid harmful exposure."
+            "Schedule a targeted ultrasound",
+            "Monitor hormone levels regularly",
+            "Maintain a healthy diet and exercise",
+            "Limit stress and avoid harmful exposure"
         ]
     else:
         st.success("✅ Everything looks normal. Continue regular prenatal checkups.")
-        recommendations = ["Keep following routine prenatal care."]
- 
+        recommendations = ["Continue routine prenatal care"]
+    
     for r in recommendations:
         st.markdown(f"- {r}")
- 
-     # 📄 Downloadable Report
-    st.markdown("### 📄 Download Report")
+    
+    # Downloadable report
     report = f"""Fetal Health Prediction Report
- 
+    
 Prediction: {label}
- 
-Prediction Probabilities:
-{proba_dict}
- 
-Top Risk Factors:
-{shap_df.head(5).to_string(index=False)}
- 
+    
+Probabilities:
+{proba_display}
+    
+Top Affecting Factors:
+{feature_importance.head(5).to_string(index=False)}
+    
 Recommendations:
 {chr(10).join(recommendations)}
-""" 
-    buffer = BytesIO()
-    buffer.write(report.encode())
-    buffer.seek(0)
- 
+"""
     st.download_button(
         label="📥 Download Report",
-        data=buffer,
+        data=report,
         file_name="fetal_health_report.txt",
         mime="text/plain"
     )
