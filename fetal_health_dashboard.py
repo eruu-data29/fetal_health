@@ -77,11 +77,18 @@ if submit:
         'Pre_Pregnancy_Weight', 'Weight_Gain_During_Pregnancy', 'Gravida', 'Parity',
         'Multiple_Pregnancy', 'History_of_Miscarriage', 'IVF_Conception'
     ])
- 
+    try:
+    df_input.columns = model.feature_names_in_
+    except AttributeError:
+    st.warning("⚠️ Warning: Model does not have 'feature_names_in_' attribute. Make sure column names match those used during training.")
+    # Debug prints to check column names
+    st.write("Model expects:", list(model.feature_names_in_))
+    st.write("Your input columns:", df_input.columns.tolist())
+
     prediction = model.predict(df_input)[0]
     proba = model.predict_proba(df_input)[0]
     label = encoder.inverse_transform([prediction])[0]
- 
+     
     st.markdown("---")
     st.subheader("🩺 Prediction Result")
     st.success(f"🔍 Predicted Status: **{label}**")
