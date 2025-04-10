@@ -78,8 +78,8 @@ if submit:
         'Multiple_Pregnancy', 'History_of_Miscarriage', 'IVF_Conception'
     ])
  
-    prediction = model.predict(df_input_data)[0]
-    proba = model.predict_proba(df_input_data)[0]
+    prediction = model.predict(df_input)[0]
+    proba = model.predict_proba(df_input)[0]
     label = encoder.inverse_transform([prediction])[0]
  
     st.markdown("---")
