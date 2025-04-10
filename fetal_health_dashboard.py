@@ -131,7 +131,7 @@ Top Risk Factors:
  
 Recommendations:
 {chr(10).join(recommendations)}
- 
+""" 
     buffer = BytesIO()
     buffer.write(report.encode())
     buffer.seek(0)
