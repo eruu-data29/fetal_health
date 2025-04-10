@@ -78,9 +78,9 @@ if submit:
         'Multiple_Pregnancy', 'History_of_Miscarriage', 'IVF_Conception'
     ])
     try:
-    df_input.columns = model.feature_names_in_
+        df_input.columns = model.feature_names_in_
     except AttributeError:
-    st.warning("⚠️ Warning: Model does not have 'feature_names_in_' attribute. Make sure column names match those used during training.")
+        st.warning("⚠️ Warning: Model does not have 'feature_names_in_' attribute. Make sure column names match those used during training.")
     # Debug prints to check column names
     st.write("Model expects:", list(model.feature_names_in_))
     st.write("Your input columns:", df_input.columns.tolist())
