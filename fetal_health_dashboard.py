@@ -152,7 +152,7 @@ if submit:
         total = importance.sum()
         top_features = pd.DataFrame({
             'Factor': model.feature_names_in_,
-            'Contribution (%)': (importance / total * 100).round(1)
+            'Contribution (%)': (importance / total * 1000).round(1)
         }).sort_values('Contribution (%)', ascending=False).head(5)
         
         st.write("### Top Contributing Factors:")
