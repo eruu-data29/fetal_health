@@ -88,24 +88,58 @@ if submit:
     # Now you can proceed with prediction
     prediction = model.predict(df_input)[0]
     proba = model.predict_proba(df_input)[0]
-    label = encoder.inverse_transform([prediction])[0]
-     
+    
+    # Get proper class names
+    class_names = encoder.classes_
+    label = class_names[prediction]
+    
+    # Display results
     st.markdown("---")
     st.subheader("🩺 Prediction Result")
     st.success(f"🔍 Predicted Status: **{label}**")
- 
+    
+    # Probabilities with proper names
     st.write("### 🔢 Prediction Probabilities:")
-    proba_dict = {str(encoder.classes_[i]): float(proba[i]*100) for i in range(len(proba))}
-    st.write({k: f"{v:.2f}%" for k, v in proba_dict.items()})
- 
+    proba_dict = {class_names[i]: float(proba[i]) for i in range(len(proba))}
+    st.write({k: f"{v*100:.2f}%" for k, v in proba_dict.items()})
+    
+    # SHAP explanation
     shap_values = explainer(df_input)
+    shap_impacts = np.array(shap_values.values[0, :]).flatten()
     shap_df = pd.DataFrame({
         "Feature": df_input.columns.tolist(),
-        "SHAP Impact": shap_values.values[0, :].tolist()
-    }).sort_values("SHAP Impact", key=abs, ascending=False)
+        "SHAP Impact": shap_impacts
+    })
+    shap_df["Absolute Impact"] = shap_df["SHAP Impact"].abs()
+    shap_df = shap_df.sort_values("Absolute Impact", ascending=False).drop("Absolute Impact", axis=1)
     
     st.write("### 🔍 Top Risk Factors:")
     st.write(shap_df.head(5))
+ 
+    st.markdown("---")
+    st.subheader("🩺 Prediction Result")
+    st.success(f"🔍 Predicted Status: **{label}**")
+
+    # Display probabilities with proper class names
+    st.write("### 🔢 Prediction Probabilities:")
+    proba_dict = {class_names[i]: float(proba[i]) for i in range(len(proba))}
+    st.write({k: f"{v*100:.2f}%" for k, v in proba_dict.items()})
+    shap_values = explainer(df_input)
+
+    # Convert to proper format for DataFrame
+    shap_impacts = np.array(shap_values.values[0, :]).flatten()  # Ensure it's 1D array
+    features = df_input.columns.tolist()
+
+    # Create DataFrame and sort by absolute impact
+    shap_df = pd.DataFrame({
+        "Feature": features,
+        "SHAP Impact": shap_impacts
+    })
+    shap_df["Absolute Impact"] = shap_df["SHAP Impact"].abs()
+    shap_df = shap_df.sort_values("Absolute Impact", ascending=False).drop("Absolute Impact", axis=1)
+    st.write("### 🔍 Top Risk Factors:")
+    st.write(shap_df.head(5))
+    
  
     # Recommendations
     st.markdown("### 💡 Recommendations:")
