@@ -95,16 +95,15 @@ if submit:
     st.success(f"🔍 Predicted Status: **{label}**")
  
     st.write("### 🔢 Prediction Probabilities:")
-    proba_dict = {encoder.classes_[i]: f"{proba[i]*100:.2f}%" for i in range(len(proba))}
-    st.write(proba_dict)
+    proba_dict = {str(encoder.classes_[i]): float(proba[i]*100) for i in range(len(proba))}
+    st.write({k: f"{v:.2f}%" for k, v in proba_dict.items()})
  
-    # SHAP explanation
     shap_values = explainer(df_input)
     shap_df = pd.DataFrame({
-        "Feature": df_input.columns,
-        "SHAP Impact": shap_values.values[0]
+        "Feature": df_input.columns.tolist(),
+        "SHAP Impact": shap_values.values[0, :].tolist()
     }).sort_values("SHAP Impact", key=abs, ascending=False)
- 
+    
     st.write("### 🔍 Top Risk Factors:")
     st.write(shap_df.head(5))
  
