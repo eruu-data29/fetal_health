@@ -77,10 +77,13 @@ if submit:
         'Pre_Pregnancy_Weight', 'Weight_Gain_During_Pregnancy', 'Gravida', 'Parity',
         'Multiple_Pregnancy', 'History_of_Miscarriage', 'IVF_Conception'
     ])
-    try:
+    # Only assign if lengths match
+    if hasattr(model, "feature_names_in_") and len(df_input.columns) == len(model.feature_names_in_):
         df_input.columns = model.feature_names_in_
-    except AttributeError:
-        st.warning("⚠️ Warning: Model does not have 'feature_names_in_' attribute. Make sure column names match those used during training.")
+    else:
+        st.error("🚨 Feature mismatch: Please check if model and input features align.")
+        st.stop()
+
     # Debug prints to check column names
     st.write("Model expects:", list(model.feature_names_in_))
     st.write("Your input columns:", df_input.columns.tolist())
