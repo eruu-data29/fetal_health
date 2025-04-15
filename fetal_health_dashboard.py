@@ -11,8 +11,13 @@ def load_model():
     return joblib.load("fetal_health_model.pkl")
 
 model = load_model()
+
+# Load the dataset to extract column names
 df = pd.read_csv("updated_fetal_health_dataset.csv")
 column_names = df.drop(columns=["Fetal_Health_Status"]).columns.tolist()
+
+# Categorical columns (based on the dataset structure, you should specify which columns are categorical)
+categorical_columns = ['Hypertension', 'Diabetes', 'Family_History', 'Family_History_Congenital_Disorder', 'Family_History_Diabetes', 'Other_Risk_Factors', 'Smoking_Status', 'Alcohol_Consumption', 'Medications', 'Mental_Health_History', 'Multiple_Pregnancy', 'History_of_Miscarriage', 'Gestational_Diabetes', 'Preeclampsia_Risk', 'IVF_Conception', 'Pregnancy_Complications', 'Fetal_Gender', 'Placental_Location', 'Non_Invasive_Prenatal_Test_Result', 'Karyotyping_Result', 'Carrier_Status_Parents', 'Environmental_Exposure']
 
 # Sidebar input form
 def get_user_input():
@@ -20,14 +25,14 @@ def get_user_input():
     input_data = {}
 
     for col in column_names:
-        if df[col].dtype in [np.float64, np.int64]:
+        if df[col].dtype in [np.float64, np.int64]:  # Numerical input
             input_data[col] = st.sidebar.number_input(
                 label=col,
                 min_value=float(df[col].min()),
                 max_value=float(df[col].max()),
                 value=float(df[col].mean())
             )
-        elif df[col].dtype == object or df[col].nunique() <= 10:
+        elif col in categorical_columns:  # Categorical input
             options = df[col].dropna().unique().tolist()
             input_data[col] = st.sidebar.selectbox(col, options)
 
@@ -39,6 +44,13 @@ st.markdown("This dashboard uses maternal and fetal parameters to predict fetal 
 
 # Get user input
 user_input_df = get_user_input()
+
+# Ensure categorical variables are encoded (Label Encoding or One Hot Encoding as necessary)
+# If the model was trained with LabelEncoders, apply them to user input
+label_encoders = joblib.load('label_encoders.pkl')  # Assuming you saved your label encoders
+for col in categorical_columns:
+    if col in user_input_df.columns:
+        user_input_df[col] = label_encoders[col].transform(user_input_df[col])
 
 # Predict fetal health
 st.subheader("🩺 Prediction Result")
