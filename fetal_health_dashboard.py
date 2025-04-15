@@ -17,9 +17,10 @@ def load_encoders():
 model = load_model()
 label_encoders = load_encoders()
 
-# Load the original dataset to get value ranges
+# Load dataset for value ranges
 df = pd.read_csv("updated_fetal_health_dataset.csv")
 
+# Feature definitions
 expected_features = [
     "Maternal_Age", "BMI", "Hypertension", "Diabetes", "Family_History",
     "Family_History_Congenital_Disorder", "Family_History_Diabetes", "Other_Risk_Factors",
@@ -46,11 +47,10 @@ binary_columns = [
     "Preeclampsia_Risk", "IVF_Conception"
 ]
 
+numeric_only_columns = ["Gravida", "Parity"]  # Treat as numeric only
 categorical_columns = list(label_encoders.keys())
 
-# Exclude Gravida and Parity from categorical encoding
-categorical_columns = [col for col in categorical_columns if col not in ["Gravida", "Parity"]]
-
+# Sidebar input function
 def get_user_input():
     st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
@@ -58,23 +58,22 @@ def get_user_input():
     for col in expected_features:
         if col in binary_columns:
             input_data[col] = 1 if st.sidebar.selectbox(col, ["No", "Yes"]) == "Yes" else 0
-        elif col in ["Gravida", "Parity"]:
-            # Treat as numeric input
+        elif col in numeric_only_columns:
             input_data[col] = st.sidebar.number_input(
                 label=col,
-                min_value=0,
-                max_value=int(df[col].max()),
-                value=int(df[col].mean()),
-                step=1
+                min_value=float(df[col].min()),
+                max_value=float(df[col].max()),
+                value=float(df[col].mean())
             )
         elif col in categorical_columns:
             options = df[col].dropna().unique().tolist()
             selection = st.sidebar.selectbox(col, options)
+
             try:
                 input_data[col] = label_encoders[col].transform([selection])[0]
             except ValueError:
                 st.warning(f"⚠️ '{selection}' not recognized for {col}. Using default.")
-                default_val = df[col].mode()[0]
+                default_val = label_encoders[col].classes_[0]
                 input_data[col] = label_encoders[col].transform([default_val])[0]
         elif df[col].dtype in [np.float64, np.int64]:
             input_data[col] = st.sidebar.number_input(
@@ -88,7 +87,7 @@ def get_user_input():
 
     return pd.DataFrame([input_data])
 
-# Get input
+# Get user input
 user_input_df = get_user_input()
 user_input_df = user_input_df[expected_features]
 
@@ -103,6 +102,7 @@ st.write("### 📊 Prediction Probabilities:")
 prob_df = pd.DataFrame({'Health Status': health_labels, 'Probability': prediction_proba})
 st.bar_chart(prob_df.set_index('Health Status'))
 
+# Recommendation
 if prediction == "Normal":
     st.success("✅ Fetus appears **Healthy** based on current data.")
 elif prediction == "Suspected":
@@ -119,7 +119,7 @@ st.set_option('deprecation.showPyplotGlobalUse', False)
 shap.plots.bar(shap_values[0], max_display=10)
 st.pyplot(bbox_inches='tight')
 
-# Top Factors
+# Top influencing features
 st.subheader("📌 Key Influencing Features")
 top_factors = shap_values[0].values.argsort()[::-1][:3]
 for i in top_factors:
