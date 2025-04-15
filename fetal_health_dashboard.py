@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import shap
 import joblib
 import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.inspection import permutation_importance
 
 # Load model and label encoders
 @st.cache_resource
@@ -50,7 +51,7 @@ binary_columns = [
 categorical_columns = list(label_encoders.keys())
 
 def get_user_input():
-    st.sidebar.header("👩‍⚕️ Enter Patient Data")
+    st.sidebar.header("\U0001F469‍⚕️ Enter Patient Data")
     input_data = {}
 
     for col in expected_features:
@@ -60,7 +61,6 @@ def get_user_input():
         elif col in categorical_columns:
             options = sorted(df[col].dropna().unique().tolist())
 
-            # If all values are numeric-like (e.g., 1–5, or 0–3)
             if all(isinstance(val, (int, float, np.integer, np.floating)) for val in options):
                 min_val, max_val = min(options), max(options)
                 user_val = st.sidebar.number_input(
@@ -104,7 +104,6 @@ def get_user_input():
 
     return pd.DataFrame([input_data])
 
-
 # Get user input
 user_input_df = get_user_input()
 user_input_df = user_input_df[expected_features]  # Enforce order
@@ -115,7 +114,7 @@ prediction = model.predict(user_input_df)[0]
 prediction_proba = model.predict_proba(user_input_df)[0]
 health_labels = model.classes_
 
-st.write(f"### 🧾 Predicted Fetal Health Status: `{prediction}`")
+st.write(f"### 💾 Predicted Fetal Health Status: `{prediction}`")
 st.write("### 📊 Prediction Probabilities:")
 prob_df = pd.DataFrame({'Health Status': health_labels, 'Probability': prediction_proba})
 st.bar_chart(prob_df.set_index('Health Status'))
@@ -128,21 +127,31 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# SHAP Explanations
-st.subheader("🔍 Feature Contribution (SHAP)")
-explainer = shap.Explainer(model)
-shap_values = explainer(user_input_df)
+# Feature Importances with permutation
+st.subheader("🔍 Top Feature Contributions")
+perm_result = permutation_importance(model, user_input_df, model.predict(user_input_df), n_repeats=10, random_state=42)
+importances = pd.DataFrame({
+    'Feature': expected_features,
+    'Importance': perm_result.importances_mean
+}).sort_values(by='Importance', ascending=False).head(10)
 
-shap.plots.bar(shap_values[0], max_display=10)
-st.pyplot(bbox_inches='tight')
+# Normalize to percentages
+importances['Contribution (%)'] = 100 * importances['Importance'] / importances['Importance'].sum()
+st.dataframe(importances[['Feature', 'Contribution (%)']])
 
-shap.plots.bar(shap_values[0], max_display=10)
-st.pyplot(bbox_inches='tight')
-
-# Top Factors
-st.subheader("📌 Key Influencing Features")
-top_factors = shap_values[0].values.argsort()[::-1][:3]
-for i in top_factors:
-    feature_name = user_input_df.columns[i]
-    feature_value = user_input_df.iloc[0, i]
-    st.write(f"- **{feature_name}**: `{feature_value}` may be influencing the risk.")
+# Recommendations based on important features
+st.subheader("📅 Personalized Recommendations")
+for row in importances.itertuples():
+    feature = row.Feature
+    contrib = row._3
+    value = user_input_df.iloc[0][feature]
+    if feature == "BMI" and value > 30:
+        st.write("- Reduce BMI with healthy diet and regular exercise to improve fetal outcomes.")
+    elif feature == "Fetal_Heart_Rate" and (value < 110 or value > 160):
+        st.write("- Abnormal Fetal Heart Rate. Consider immediate monitoring or follow-up.")
+    elif feature == "Gestational_Age" and value < 24:
+        st.write("- Early gestation detected. Ensure close prenatal care and monitoring.")
+    elif feature == "Preeclampsia_Risk" and value == 1:
+        st.write("- High risk of Preeclampsia. Consult with healthcare provider for risk management.")
+    elif contrib > 10:
+        st.write(f"- `{feature}` is highly influential. Maintain within normal range if possible.")
