@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import shap
 import matplotlib.pyplot as plt
-from sklearn.inspection import permutation_importance
 
 # Load model and label encoders
 @st.cache_resource
@@ -126,19 +126,17 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# Feature importance using permutation importance
-st.subheader("🔍 Feature Contribution")
-perm_importance = permutation_importance(model, user_input_df, prediction_proba, n_repeats=10, random_state=42)
-importance_df = pd.DataFrame(perm_importance['importances_mean'], columns=["Importance"], index=expected_features)
+# SHAP Feature importance using SHAP
+st.subheader("🔍 Feature Contribution with SHAP")
 
-# Show top 5 features
-top_factors = importance_df.sort_values(by="Importance", ascending=False).head(5)
-top_factors_percentage = top_factors / top_factors.sum() * 100
+# Initialize SHAP explainer
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(user_input_df)
 
-st.write("### Top 5 Contributing Features:")
-st.bar_chart(top_factors_percentage)
+# Visualize SHAP values for the top 5 contributing features
+shap.summary_plot(shap_values, user_input_df, plot_type="bar", max_display=5)
 
-# Recommendation based on health status
+# Display the recommendation for the predicted health status
 def get_recommendation(status):
     if status == "Normal":
         return """
@@ -163,10 +161,6 @@ def get_recommendation(status):
     else:
         return "No specific recommendation available."
 
-# Display the recommendation for the predicted health status
 recommendation = get_recommendation(prediction)
 st.write("### 📝 Recommendations:")
 st.write(recommendation)
-
-for feature in top_factors.index:
-    st.write(f"- **{feature}**: `{top_factors[feature][0]:.2f}%` - {recommendations.get(feature, 'No specific recommendation available.')}") 
