@@ -32,7 +32,7 @@ def get_user_input():
     st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
 
-    for col in column_names:
+    for col in expected_features:
         if col in binary_columns:
             yes_no = st.sidebar.selectbox(col, ["No", "Yes"])
             input_data[col] = 1 if yes_no == "Yes" else 0
