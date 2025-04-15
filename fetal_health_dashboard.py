@@ -131,6 +131,7 @@ try:
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(user_input_df)
 
+    # Determine the index of the predicted class and extract SHAP values for that class
     pred_class_index = list(model.classes_).index(prediction)
     shap_values_for_class = shap_values[pred_class_index]
 
