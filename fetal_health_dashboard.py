@@ -118,7 +118,6 @@ st.write("### 📊 Prediction Probabilities:")
 prob_df = pd.DataFrame({'Health Status': health_labels, 'Probability': prediction_proba})
 st.bar_chart(prob_df.set_index('Health Status'))
 
-# Interpretation
 if prediction == "Normal":
     st.success("✅ Fetus appears **Healthy** based on current data.")
 elif prediction == "Suspected":
@@ -126,33 +125,45 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# SHAP Feature importance using SHAP
-st.subheader("🔍 Feature Contribution with SHAP")
+# SHAP Feature Contribution Table
+st.subheader("📌 Top Feature Contributions (SHAP Percentages)")
+try:
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(user_input_df)
 
-# Initialize SHAP explainer
-explainer = shap.TreeExplainer(model)
-shap_values = explainer.shap_values(user_input_df)
+    pred_class_index = list(model.classes_).index(prediction)
+    shap_values_for_class = shap_values[pred_class_index]
 
-# Align the SHAP values with the correct features
-shap_vals = shap_values[0] if isinstance(shap_values, list) else shap_values
-shap_df = pd.DataFrame({
-    "Feature": user_input_df.columns,
-    "SHAP Value": shap_vals
-})
+    abs_shap_vals = np.abs(shap_values_for_class[0])
+    total = np.sum(abs_shap_vals)
 
-# Add percentage contribution
-shap_df["Absolute"] = shap_df["SHAP Value"].abs()
-shap_df["Percentage Contribution"] = 100 * shap_df["Absolute"] / shap_df["Absolute"].sum()
+    if total == 0 or np.isnan(total):
+        st.warning("⚠️ SHAP could not compute meaningful feature contributions for this input.")
+    else:
+        percent_contributions = (abs_shap_vals / total) * 100
+        valid_indices = [i for i in np.argsort(percent_contributions)[::-1] if np.isfinite(percent_contributions[i])]
+        N = min(5, len(valid_indices))
+        top_indices = valid_indices[:N]
 
-# Sort the features by absolute SHAP value
-shap_df_sorted = shap_df.sort_values("Absolute", ascending=False).head(5)
+        top_features = [user_input_df.columns[i] for i in top_indices]
+        top_values = [user_input_df.iloc[0, i] for i in top_indices]
+        top_percentages = [percent_contributions[i] for i in top_indices]
 
-# Display the top 5 feature contributions
-st.subheader("🔍 Top 5 Feature Contributions")
-for i, row in shap_df_sorted.iterrows():
-    st.write(f"- **{row['Feature']}**: {row['Percentage Contribution']:.2f}%")
+        if len(top_features) == len(top_values) == len(top_percentages):
+            shap_df = pd.DataFrame({
+                "Feature": top_features,
+                "Value": top_values,
+                "Contribution (%)": top_percentages
+            }).round(2)
 
-# Recommendation based on prediction
+            st.dataframe(shap_df.style.format({"Contribution (%)": "{:.2f}"}), use_container_width=True)
+        else:
+            st.error("❌ SHAP mismatch: Unable to align features and values for explanation.")
+
+except Exception as e:
+    st.error(f"❌ SHAP Error: {str(e)}")
+
+# Recommendations
 def get_recommendation(status):
     if status == "Normal":
         return """
