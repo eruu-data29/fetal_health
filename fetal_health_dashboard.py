@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import matplotlib.pyplot as plt
+from sklearn.inspection import permutation_importance
 
 # Load model and label encoders
 @st.cache_resource
@@ -39,18 +40,72 @@ expected_features = [
     "Exercise_Frequency"
 ]
 
-# Get user input function
+binary_columns = [
+    "Hypertension", "Diabetes", "Family_History", "Family_History_Congenital_Disorder",
+    "Family_History_Diabetes", "Other_Risk_Factors", "Chromosomal_Abnormality",
+    "Multiple_Pregnancy", "History_of_Miscarriage", "Gestational_Diabetes",
+    "Preeclampsia_Risk", "IVF_Conception"
+]
+
+categorical_columns = list(label_encoders.keys())
+
 def get_user_input():
     st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
 
     for col in expected_features:
-        input_data[col] = st.sidebar.text_input(col, "")
+        if col in binary_columns:
+            input_data[col] = 1 if st.sidebar.selectbox(col, ["No", "Yes"]) == "Yes" else 0
+
+        elif col in categorical_columns:
+            options = sorted(df[col].dropna().unique().tolist())
+
+            if all(isinstance(val, (int, float, np.integer, np.floating)) for val in options):
+                min_val, max_val = min(options), max(options)
+                user_val = st.sidebar.number_input(
+                    f"{col} (allowed: {int(min_val)}–{int(max_val)})",
+                    min_value=float(min_val),
+                    max_value=float(max_val),
+                    value=float(df[col].mode()[0])
+                )
+
+                if user_val not in options:
+                    st.warning(f"⚠️ `{int(user_val)}` is out of range for `{col}`. Using default.")
+                    user_val = df[col].mode()[0]
+
+                input_data[col] = label_encoders[col].transform([str(int(user_val))])[0]
+
+            else:
+                options = sorted([str(o) for o in options])
+                default_val = str(df[col].mode()[0])
+                selection = st.sidebar.selectbox(col, options)
+
+                try:
+                    input_data[col] = label_encoders[col].transform([selection])[0]
+                except ValueError:
+                    st.warning(f"⚠️ '{selection}' not recognized for {col}. Using default.")
+                    input_data[col] = label_encoders[col].transform([default_val])[0]
+
+        elif df[col].dtype in [np.float64, np.int64]:
+            min_val = float(df[col].min())
+            max_val = float(df[col].max())
+            mean_val = float(df[col].mean())
+            input_val = st.sidebar.number_input(
+                label=col,
+                min_value=min_val,
+                max_value=max_val,
+                value=mean_val
+            )
+            input_data[col] = input_val
+
+        else:
+            input_data[col] = st.sidebar.text_input(col, "")
 
     return pd.DataFrame([input_data])
 
 # Get user input
 user_input_df = get_user_input()
+user_input_df = user_input_df[expected_features]  # Enforce order
 
 # Predict
 st.subheader("🩺 Prediction Result")
@@ -58,11 +113,30 @@ prediction = model.predict(user_input_df)[0]
 prediction_proba = model.predict_proba(user_input_df)[0]
 health_labels = model.classes_
 
-# Display predicted health status
 st.write(f"### 🧾 Predicted Fetal Health Status: `{prediction}`")
 st.write("### 📊 Prediction Probabilities:")
 prob_df = pd.DataFrame({'Health Status': health_labels, 'Probability': prediction_proba})
 st.bar_chart(prob_df.set_index('Health Status'))
+
+# Interpretation
+if prediction == "Normal":
+    st.success("✅ Fetus appears **Healthy** based on current data.")
+elif prediction == "Suspected":
+    st.warning("⚠️ Irregular patterns detected. Further medical tests may be required.")
+elif prediction == "Pathological":
+    st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
+
+# Feature importance using permutation importance
+st.subheader("🔍 Feature Contribution")
+perm_importance = permutation_importance(model, user_input_df, prediction_proba, n_repeats=10, random_state=42)
+importance_df = pd.DataFrame(perm_importance['importances_mean'], columns=["Importance"], index=expected_features)
+
+# Show top 5 features
+top_factors = importance_df.sort_values(by="Importance", ascending=False).head(5)
+top_factors_percentage = top_factors / top_factors.sum() * 100
+
+st.write("### Top 5 Contributing Features:")
+st.bar_chart(top_factors_percentage)
 
 # Recommendation based on health status
 def get_recommendation(status):
@@ -94,3 +168,5 @@ recommendation = get_recommendation(prediction)
 st.write("### 📝 Recommendations:")
 st.write(recommendation)
 
+for feature in top_factors.index:
+    st.write(f"- **{feature}**: `{top_factors[feature][0]:.2f}%` - {recommendations.get(feature, 'No specific recommendation available.')}") 
