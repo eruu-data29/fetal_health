@@ -56,6 +56,30 @@ st.markdown("This dashboard uses maternal and fetal parameters to predict fetal 
 # Get user input
 user_input_df = get_user_input()
 
+# Reorder columns to match training-time feature order
+expected_features = [
+    "Maternal_Age", "BMI", "Hypertension", "Diabetes", "Family_History",
+    "Family_History_Congenital_Disorder", "Family_History_Diabetes", "Other_Risk_Factors",
+    "Gestational_Age", "Fetal_Heart_Rate", "Head_Circumference", 
+    "Abdominal_Circumference", "Femur_Length", "Nuchal_Translucency", "AFP",
+    "hCG", "Estriol", "Inhibin_A", "Chromosomal_Abnormality", "Brain_MRI_Risk",
+    "Heart_Ultrasound_Risk", "fMCG_Risk", "Echocardiography_Risk", "Smoking_Status",
+    "Alcohol_Consumption", "Pre_Pregnancy_Weight", "Weight_Gain_During_Pregnancy", 
+    "Medications", "Mental_Health_History", "Gravida", "Parity", "Multiple_Pregnancy",
+    "History_of_Miscarriage", "Gestational_Diabetes", "Preeclampsia_Risk", 
+    "IVF_Conception", "Pregnancy_Complications", "Fetal_Gender", "Placental_Location", 
+    "Calcification_Grade", "Amniotic_Fluid_Index", "Umbilical_Artery_Doppler",
+    "Biophysical_Profile_Score", "fMCG_STV", "Fetal_Movement_Counts", "PAPP-A", 
+    "TSH", "CRP", "Hemoglobin_Level", "Blood_Pressure_Trend",
+    "Non_Invasive_Prenatal_Test_Result", "Karyotyping_Result", 
+    "Carrier_Status_Parents", "Environmental_Exposure", "Diet_Quality_Index", 
+    "Exercise_Frequency"
+]
+
+# Ensure columns are ordered as per the model input during training
+user_input_df = user_input_df[expected_features]
+
+
 # Predict fetal health
 st.subheader("🩺 Prediction Result")
 prediction = model.predict(user_input_df)[0]
