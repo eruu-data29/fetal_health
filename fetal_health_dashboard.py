@@ -133,7 +133,9 @@ st.subheader("🔍 Feature Contribution (SHAP)")
 explainer = shap.Explainer(model)
 shap_values = explainer(user_input_df)
 
-st.set_option('deprecation.showPyplotGlobalUse', False)
+shap.plots.bar(shap_values[0], max_display=10)
+st.pyplot(bbox_inches='tight')
+
 shap.plots.bar(shap_values[0], max_display=10)
 st.pyplot(bbox_inches='tight')
 
