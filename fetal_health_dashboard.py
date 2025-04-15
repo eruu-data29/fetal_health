@@ -5,17 +5,21 @@ import shap
 import joblib
 import matplotlib.pyplot as plt
 
-# Load the model
+# Load model and label encoders
 @st.cache_resource
 def load_model():
     return joblib.load("fetal_health_model.pkl")
 
-model = load_model()
+@st.cache_resource
+def load_encoders():
+    return joblib.load("label_encoders.pkl")
 
-# Load data
+model = load_model()
+label_encoders = load_encoders()
+
+# Load the original dataset to get value ranges
 df = pd.read_csv("updated_fetal_health_dataset.csv")
 
-# Define expected model input features
 expected_features = [
     "Maternal_Age", "BMI", "Hypertension", "Diabetes", "Family_History",
     "Family_History_Congenital_Disorder", "Family_History_Diabetes", "Other_Risk_Factors",
@@ -35,7 +39,6 @@ expected_features = [
     "Exercise_Frequency"
 ]
 
-# Binary columns for Yes/No inputs
 binary_columns = [
     "Hypertension", "Diabetes", "Family_History", "Family_History_Congenital_Disorder",
     "Family_History_Diabetes", "Other_Risk_Factors", "Chromosomal_Abnormality",
@@ -43,10 +46,8 @@ binary_columns = [
     "Preeclampsia_Risk", "IVF_Conception"
 ]
 
-# Categorical columns if any (you can expand this list)
-categorical_columns = ["Fetal_Gender", "Placental_Location", "Smoking_Status", "Alcohol_Consumption"]
+categorical_columns = list(label_encoders.keys())
 
-# Sidebar input form
 def get_user_input():
     st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
@@ -55,7 +56,9 @@ def get_user_input():
         if col in binary_columns:
             input_data[col] = 1 if st.sidebar.selectbox(col, ["No", "Yes"]) == "Yes" else 0
         elif col in categorical_columns:
-            input_data[col] = st.sidebar.selectbox(col, df[col].dropna().unique().tolist())
+            options = df[col].dropna().unique().tolist()
+            selection = st.sidebar.selectbox(col, options)
+            input_data[col] = label_encoders[col].transform([selection])[0] if col in label_encoders else selection
         elif df[col].dtype in [np.float64, np.int64]:
             input_data[col] = st.sidebar.number_input(
                 label=col,
@@ -68,16 +71,11 @@ def get_user_input():
 
     return pd.DataFrame([input_data])
 
-# -----------------------
-# Rest of your app below
-# -----------------------
-
+# Get input
 user_input_df = get_user_input()
+user_input_df = user_input_df[expected_features]  # Ensure column order
 
-# Ensure columns match model expectations
-user_input_df = user_input_df[expected_features]
-
-# Prediction
+# Predict
 st.subheader("🩺 Prediction Result")
 prediction = model.predict(user_input_df)[0]
 prediction_proba = model.predict_proba(user_input_df)[0]
@@ -95,7 +93,7 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# SHAP explanation
+# SHAP Explanation
 st.subheader("🔍 Feature Contribution (SHAP)")
 explainer = shap.Explainer(model)
 shap_values = explainer(user_input_df)
@@ -104,7 +102,7 @@ st.set_option('deprecation.showPyplotGlobalUse', False)
 shap.plots.bar(shap_values[0], max_display=10)
 st.pyplot(bbox_inches='tight')
 
-# Top contributing features
+# Top Factors
 st.subheader("📌 Key Influencing Features")
 top_factors = shap_values[0].values.argsort()[::-1][:3]
 for i in top_factors:
