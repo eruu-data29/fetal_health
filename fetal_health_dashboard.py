@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-from sklearn.inspection import permutation_importance
+import shap
 import matplotlib.pyplot as plt
 
 # Load model and label encoders
@@ -125,33 +125,43 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# Permutation Importance Feature Contribution Table
-st.subheader("📌 Top Feature Contributions (Permutation Importance)")
-
+# SHAP Feature Contribution Table
+st.subheader("📌 Top Feature Contributions (SHAP Percentages)")
 try:
-    # Calculate permutation importance
-    result = permutation_importance(model, user_input_df, prediction_proba, n_repeats=10, random_state=42)
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(user_input_df)
 
-    # Get the importance values
-    sorted_idx = result.importances_mean.argsort()[::-1]
+    pred_class_index = list(model.classes_).index(prediction)
+    shap_values_for_class = shap_values[pred_class_index]
 
-    top_features = [user_input_df.columns[i] for i in sorted_idx[:5]]
-    top_values = [user_input_df.iloc[0, i] for i in sorted_idx[:5]]
-    top_importances = result.importances_mean[sorted_idx[:5]]
+    abs_shap_vals = np.abs(shap_values_for_class[0])
+    total = np.sum(abs_shap_vals)
 
-    if len(top_features) == len(top_values) == len(top_importances):
-        importance_df = pd.DataFrame({
-            "Feature": top_features,
-            "Value": top_values,
-            "Importance": top_importances
-        }).round(2)
-
-        st.dataframe(importance_df.style.format({"Importance": "{:.2f}"}), use_container_width=True)
+    if total == 0 or np.isnan(total):
+        st.warning("⚠️ SHAP could not compute meaningful feature contributions for this input.")
     else:
-        st.error("❌ Permutation Importance mismatch: Unable to align features and values for explanation.")
+        percent_contributions = (abs_shap_vals / total) * 100
+        valid_indices = [i for i in np.argsort(percent_contributions)[::-1] if np.isfinite(percent_contributions[i])]
+        N = min(5, len(valid_indices))
+        top_indices = valid_indices[:N]
+
+        top_features = [user_input_df.columns[i] for i in top_indices]
+        top_values = [user_input_df.iloc[0, i] for i in top_indices]
+        top_percentages = [percent_contributions[i] for i in top_indices]
+
+        if len(top_features) == len(top_values) == len(top_percentages):
+            shap_df = pd.DataFrame({
+                "Feature": top_features,
+                "Value": top_values,
+                "Contribution (%)": top_percentages
+            }).round(2)
+
+            st.dataframe(shap_df.style.format({"Contribution (%)": "{:.2f}"}), use_container_width=True)
+        else:
+            st.error("❌ SHAP mismatch: Unable to align features and values for explanation.")
 
 except Exception as e:
-    st.error(f"❌ Permutation Importance Error: {str(e)}")
+    st.error(f"❌ SHAP Error: {str(e)}")
 
 # Recommendations
 def get_recommendation(status):
