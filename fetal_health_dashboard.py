@@ -131,8 +131,12 @@ try:
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(user_input_df)
 
-    pred_class_index = list(model.classes_).index(prediction)
-    shap_values_for_class = shap_values[pred_class_index]
+    # Handle both binary and multiclass scenarios
+    if isinstance(shap_values, list):  # Multiclass case
+        pred_class_index = list(model.classes_).index(prediction)
+        shap_values_for_class = shap_values[pred_class_index]
+    else:  # Binary case
+        shap_values_for_class = shap_values
 
     abs_shap_vals = np.abs(shap_values_for_class[0])
     total = np.sum(abs_shap_vals)
