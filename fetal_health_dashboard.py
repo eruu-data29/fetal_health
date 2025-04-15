@@ -48,30 +48,35 @@ binary_columns = [
 
 categorical_columns = list(label_encoders.keys())
 
+# Exclude Gravida and Parity from categorical encoding
+categorical_columns = [col for col in categorical_columns if col not in ["Gravida", "Parity"]]
+
 def get_user_input():
     st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
 
     for col in expected_features:
         if col in binary_columns:
-            # Handle binary (Yes/No) columns
             input_data[col] = 1 if st.sidebar.selectbox(col, ["No", "Yes"]) == "Yes" else 0
+        elif col in ["Gravida", "Parity"]:
+            # Treat as numeric input
+            input_data[col] = st.sidebar.number_input(
+                label=col,
+                min_value=0,
+                max_value=int(df[col].max()),
+                value=int(df[col].mean()),
+                step=1
+            )
         elif col in categorical_columns:
-            # Handle categorical columns
             options = df[col].dropna().unique().tolist()
             selection = st.sidebar.selectbox(col, options)
-            
             try:
-                # Use LabelEncoder to transform categorical values
                 input_data[col] = label_encoders[col].transform([selection])[0]
             except ValueError:
-                # Handle unseen labels (labels not seen during training)
                 st.warning(f"⚠️ '{selection}' not recognized for {col}. Using default.")
-                # Default to the most frequent value (mode) in the dataset
                 default_val = df[col].mode()[0]
                 input_data[col] = label_encoders[col].transform([default_val])[0]
         elif df[col].dtype in [np.float64, np.int64]:
-            # Handle numerical columns
             input_data[col] = st.sidebar.number_input(
                 label=col,
                 min_value=float(df[col].min()),
@@ -79,15 +84,13 @@ def get_user_input():
                 value=float(df[col].mean())
             )
         else:
-            # Handle text input (for columns that don't fit into the previous categories)
             input_data[col] = st.sidebar.text_input(col, "")
 
     return pd.DataFrame([input_data])
 
-
 # Get input
 user_input_df = get_user_input()
-user_input_df = user_input_df[expected_features]  # Ensure column order
+user_input_df = user_input_df[expected_features]
 
 # Predict
 st.subheader("🩺 Prediction Result")
