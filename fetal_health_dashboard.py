@@ -126,14 +126,18 @@ elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
 # SHAP Feature Contribution Table
+# SHAP Feature Contribution Table
 st.subheader("📌 Top Feature Contributions (SHAP Percentages)")
 try:
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(user_input_df)
 
-    # Determine the index of the predicted class and extract SHAP values for that class
-    pred_class_index = list(model.classes_).index(prediction)
-    shap_values_for_class = shap_values[pred_class_index]
+    # Handle multiclass and binary SHAP formats
+    if isinstance(shap_values, list):
+        pred_class_index = list(model.classes_).index(prediction)
+        shap_values_for_class = shap_values[pred_class_index]
+    else:
+        shap_values_for_class = shap_values
 
     abs_shap_vals = np.abs(shap_values_for_class[0])
     total = np.sum(abs_shap_vals)
@@ -163,6 +167,7 @@ try:
 
 except Exception as e:
     st.error(f"❌ SHAP Error: {str(e)}")
+
 
 # Recommendations
 def get_recommendation(status):
