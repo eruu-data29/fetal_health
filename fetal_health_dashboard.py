@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import shap
+import matplotlib.pyplot as plt
 
 # Load model and label encoders
 @st.cache_resource
@@ -49,7 +50,7 @@ binary_columns = [
 categorical_columns = list(label_encoders.keys())
 
 def get_user_input():
-    st.sidebar.header("\U0001F469‍⚕️ Enter Patient Data")
+    st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
 
     for col in expected_features:
@@ -112,12 +113,11 @@ prediction = model.predict(user_input_df)[0]
 prediction_proba = model.predict_proba(user_input_df)[0]
 health_labels = model.classes_
 
-st.write(f"### 📜 Predicted Fetal Health Status: `{prediction}`")
+st.write(f"### 🧾 Predicted Fetal Health Status: `{prediction}`")
 st.write("### 📊 Prediction Probabilities:")
 prob_df = pd.DataFrame({'Health Status': health_labels, 'Probability': prediction_proba})
 st.bar_chart(prob_df.set_index('Health Status'))
 
-# Interpretation
 if prediction == "Normal":
     st.success("✅ Fetus appears **Healthy** based on current data.")
 elif prediction == "Suspected":
@@ -125,31 +125,45 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# SHAP Feature importance using SHAP (Text-Only Contribution)
-st.subheader("🔍 Feature Contribution (Top 5 by SHAP Importance)")
+# SHAP Feature Contribution Table
+st.subheader("📌 Top Feature Contributions (SHAP Percentages)")
+try:
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(user_input_df)
 
-# Initialize SHAP explainer
-explainer = shap.TreeExplainer(model)
-shap_values = explainer.shap_values(user_input_df)
+    pred_class_index = list(model.classes_).index(prediction)
+    shap_values_for_class = shap_values[pred_class_index]
 
-# Get SHAP values for predicted class
-predicted_class_index = list(model.classes_).index(prediction)
-shap_vals = shap_values[predicted_class_index][0]  # First row only
+    abs_shap_vals = np.abs(shap_values_for_class[0])
+    total = np.sum(abs_shap_vals)
 
-# Get absolute SHAP values and percentage
-abs_shap_vals = np.abs(shap_vals)
-shap_percent = 100 * abs_shap_vals / np.sum(abs_shap_vals)
+    if total == 0 or np.isnan(total):
+        st.warning("⚠️ SHAP could not compute meaningful feature contributions for this input.")
+    else:
+        percent_contributions = (abs_shap_vals / total) * 100
+        valid_indices = [i for i in np.argsort(percent_contributions)[::-1] if np.isfinite(percent_contributions[i])]
+        N = min(5, len(valid_indices))
+        top_indices = valid_indices[:N]
 
-shap_df = pd.DataFrame({
-    'Feature': user_input_df.columns,
-    'Contribution (%)': shap_percent
-}).sort_values(by='Contribution (%)', ascending=False).head(5)
+        top_features = [user_input_df.columns[i] for i in top_indices]
+        top_values = [user_input_df.iloc[0, i] for i in top_indices]
+        top_percentages = [percent_contributions[i] for i in top_indices]
 
-# Display as text
-for _, row in shap_df.iterrows():
-    st.write(f"- **{row['Feature']}**: `{row['Contribution (%)']:.2f}%`")
+        if len(top_features) == len(top_values) == len(top_percentages):
+            shap_df = pd.DataFrame({
+                "Feature": top_features,
+                "Value": top_values,
+                "Contribution (%)": top_percentages
+            }).round(2)
 
-# Display the recommendation for the predicted health status
+            st.dataframe(shap_df.style.format({"Contribution (%)": "{:.2f}"}), use_container_width=True)
+        else:
+            st.error("❌ SHAP mismatch: Unable to align features and values for explanation.")
+
+except Exception as e:
+    st.error(f"❌ SHAP Error: {str(e)}")
+
+# Recommendations
 def get_recommendation(status):
     if status == "Normal":
         return """
@@ -175,5 +189,5 @@ def get_recommendation(status):
         return "No specific recommendation available."
 
 recommendation = get_recommendation(prediction)
-st.write("### 📜 Recommendations:")
+st.write("### 📝 Recommendations:")
 st.write(recommendation)
