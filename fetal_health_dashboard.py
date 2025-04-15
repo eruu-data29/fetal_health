@@ -3,26 +3,22 @@ import pandas as pd
 import numpy as np
 import joblib
 import shap
-from sklearn.preprocessing import LabelEncoder
 
-# ------------------- Load Model and Encoders -------------------
+# Load model and encoders
 @st.cache_resource
-
 def load_model():
     return joblib.load("fetal_health_model.pkl")
 
 @st.cache_resource
-
 def load_encoders():
     return joblib.load("label_encoders.pkl")
 
 model = load_model()
 label_encoders = load_encoders()
 
-# ------------------- Load Dataset -------------------
+# Load dataset for value ranges
 df = pd.read_csv("updated_fetal_health_dataset.csv")
 
-# ------------------- Feature Setup -------------------
 expected_features = [
     "Maternal_Age", "BMI", "Hypertension", "Diabetes", "Family_History",
     "Family_History_Congenital_Disorder", "Family_History_Diabetes", "Other_Risk_Factors",
@@ -51,7 +47,6 @@ binary_columns = [
 
 categorical_columns = list(label_encoders.keys())
 
-# ------------------- User Input Sidebar -------------------
 def get_user_input():
     st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
@@ -59,40 +54,48 @@ def get_user_input():
     for col in expected_features:
         if col in binary_columns:
             input_data[col] = 1 if st.sidebar.selectbox(col, ["No", "Yes"]) == "Yes" else 0
-
         elif col in categorical_columns:
             options = sorted(df[col].dropna().unique().tolist())
-            default_val = str(df[col].mode()[0])
-            selection = st.sidebar.selectbox(col, sorted([str(o) for o in options]), index=0)
-            try:
-                input_data[col] = label_encoders[col].transform([selection])[0]
-            except ValueError:
-                input_data[col] = label_encoders[col].transform([default_val])[0]
-
+            if all(isinstance(val, (int, float, np.integer, np.floating)) for val in options):
+                min_val, max_val = min(options), max(options)
+                user_val = st.sidebar.number_input(col, min_value=float(min_val), max_value=float(max_val), value=float(df[col].mode()[0]))
+                if user_val not in options:
+                    user_val = df[col].mode()[0]
+                input_data[col] = label_encoders[col].transform([str(int(user_val))])[0]
+            else:
+                options = sorted([str(o) for o in options])
+                default_val = str(df[col].mode()[0])
+                selection = st.sidebar.selectbox(col, options)
+                try:
+                    input_data[col] = label_encoders[col].transform([selection])[0]
+                except ValueError:
+                    input_data[col] = label_encoders[col].transform([default_val])[0]
         elif df[col].dtype in [np.float64, np.int64]:
             min_val = float(df[col].min())
             max_val = float(df[col].max())
             mean_val = float(df[col].mean())
-            input_data[col] = st.sidebar.number_input(col, min_val, max_val, mean_val)
-
+            input_val = st.sidebar.number_input(label=col, min_value=min_val, max_value=max_val, value=mean_val)
+            input_data[col] = input_val
         else:
             input_data[col] = st.sidebar.text_input(col, "")
 
     return pd.DataFrame([input_data])
 
-# ------------------- Prediction -------------------
 user_input_df = get_user_input()
 user_input_df = user_input_df[expected_features]
 
+# Predict
 st.subheader("🩺 Prediction Result")
 prediction = model.predict(user_input_df)[0]
 prediction_proba = model.predict_proba(user_input_df)[0]
 health_labels = model.classes_
 
-st.write(f"### 📜 Predicted Fetal Health Status: `{prediction}`")
+st.write(f"### 🧾 Predicted Fetal Health Status: `{prediction}`")
+st.write("### 📊 Prediction Probabilities:")
 prob_df = pd.DataFrame({'Health Status': health_labels, 'Probability': prediction_proba})
 st.bar_chart(prob_df.set_index('Health Status'))
 
+# Explanation
 if prediction == "Normal":
     st.success("✅ Fetus appears **Healthy** based on current data.")
 elif prediction == "Suspected":
@@ -100,46 +103,41 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# ------------------- SHAP Interpretation -------------------
-st.subheader("🔍 Feature Contribution with SHAP")
+# SHAP Explanation - Text only
+st.subheader("🔍 Top 5 Feature Contributions")
+
+# SHAP
 explainer = shap.TreeExplainer(model)
 shap_values = explainer.shap_values(user_input_df)
 
-shap_array = shap_values[np.argmax(prediction_proba)][0]  # Use class with highest prob
+# Get the SHAP values for the predicted class
+predicted_class_index = list(model.classes_).index(prediction)
+shap_vals = shap_values[predicted_class_index][0]  # Single row
+
+# Build a DataFrame of SHAP values
 shap_df = pd.DataFrame({
     "Feature": user_input_df.columns,
-    "SHAP Value": shap_array
+    "SHAP Value": shap_vals
 })
 
-shap_df["Abs_Val"] = np.abs(shap_df["SHAP Value"])
-shap_df["Contribution %"] = (shap_df["Abs_Val"] / shap_df["Abs_Val"].sum()) * 100
-shap_df_sorted = shap_df.sort_values("Abs_Val", ascending=False).head(5)
+shap_df["Absolute"] = shap_df["SHAP Value"].abs()
+shap_df["Percentage Contribution"] = 100 * shap_df["Absolute"] / shap_df["Absolute"].sum()
+shap_df_sorted = shap_df.sort_values("Absolute", ascending=False).head(5)
 
-st.write("### 🔹 Top 5 Feature Contributions:")
-st.dataframe(shap_df_sorted[["Feature", "Contribution %"]].round(2), use_container_width=True)
+# Display
+for i, row in shap_df_sorted.iterrows():
+    st.write(f"- **{row['Feature']}**: {row['Percentage Contribution']:.2f}%")
 
-# ------------------- Recommendations -------------------
+# Recommendations
 def get_recommendation(status):
     if status == "Normal":
-        return """
-        ✅ Fetus appears **Healthy** based on current data.
-        - Continue regular prenatal visits and follow a healthy lifestyle.
-        - Ensure balanced nutrition and maintain a stress-free environment.
-        """
+        return "✅ Fetus appears healthy. Continue regular prenatal care."
     elif status == "Suspected":
-        return """
-        ⚠️ Irregular patterns detected. Further medical tests may be required.
-        - Regular monitoring of fetal health is recommended.
-        - Consult your healthcare provider for additional screening tests.
-        """
+        return "⚠️ Irregularities detected. Further medical tests are advised."
     elif status == "Pathological":
-        return """
-        🚨 High risk of fetal complications. Immediate medical attention is recommended.
-        - Consult your healthcare provider urgently for further evaluation.
-        - Consider additional diagnostic tests and follow instructions strictly.
-        """
+        return "🚨 High risk. Immediate medical attention is necessary."
     else:
-        return "No specific recommendation available."
+        return "No recommendation available."
 
 st.write("### 📝 Recommendations:")
 st.write(get_recommendation(prediction))
