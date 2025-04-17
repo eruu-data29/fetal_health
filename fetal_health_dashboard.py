@@ -140,15 +140,14 @@ def get_recommendation(status):
         - Consult your healthcare provider for additional screening tests.
         - Follow up on blood pressure, glucose, and other prenatal tests.
         """
-    elif status == "Pathological":
+    else status == "Pathological":
         return """
         🚨 High risk of fetal complications. Immediate medical attention is recommended.
         - Consult your healthcare provider urgently for further evaluation.
         - Consider additional diagnostic tests (e.g., ultrasound, fetal monitoring).
         - Follow healthcare provider’s instructions closely for immediate intervention.
         """
-    else:
-        return "No specific recommendation available."
+    
 
 recommendation = get_recommendation(prediction)
 st.write("### 📝 Recommendations:")
