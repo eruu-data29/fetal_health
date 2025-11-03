@@ -203,6 +203,6 @@ if uploaded_image is not None:
     else:
         st.error("🚨 Potential abnormality detected in scan. Please consult a radiologist immediately.")
 
-    st.caption("⚡ Note: This is a **simulated AI model output**. Real CNN model integration can replace this placeholder.")
+    st.caption("⚡ Note: This is a **simulated AI model output**")
 else:
-    st.warning("⚠️ No image uploaded yet. Upload X-ray or ultrasound scan for AI-based visual analysis.")
+    st.warning("⚠️ Upload X-ray or ultrasound scan for AI-based visual analysis.")
