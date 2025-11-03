@@ -4,8 +4,12 @@ import numpy as np
 import joblib
 import shap
 import matplotlib.pyplot as plt
+import random
+from PIL import Image
 
-# Load model and label encoders
+# -----------------------------
+# 🚀 Load model and encoders
+# -----------------------------
 @st.cache_resource
 def load_model():
     return joblib.load("fetal_health_model.pkl")
@@ -17,10 +21,14 @@ def load_encoders():
 model = load_model()
 label_encoders = load_encoders()
 
-# Load dataset for value ranges
+# -----------------------------
+# 📊 Load dataset
+# -----------------------------
 df = pd.read_csv("updated_fetal_health_dataset.csv")
 
-# Expected features for input
+# -----------------------------
+# 🧾 Define feature sets
+# -----------------------------
 expected_features = [
     "Maternal_Age", "BMI", "Hypertension", "Diabetes", "Family_History",
     "Family_History_Congenital_Disorder", "Family_History_Diabetes", "Other_Risk_Factors",
@@ -49,6 +57,9 @@ binary_columns = [
 
 categorical_columns = list(label_encoders.keys())
 
+# -----------------------------
+# 🧮 Sidebar Input
+# -----------------------------
 def get_user_input():
     st.sidebar.header("👩‍⚕️ Enter Patient Data")
     input_data = {}
@@ -103,11 +114,12 @@ def get_user_input():
 
     return pd.DataFrame([input_data])
 
-# Get user input
+# -----------------------------
+# 🧩 Predict
+# -----------------------------
 user_input_df = get_user_input()
-user_input_df = user_input_df[expected_features]  # Enforce order
+user_input_df = user_input_df[expected_features]
 
-# Predict
 st.subheader("🩺 Prediction Result")
 prediction = model.predict(user_input_df)[0]
 prediction_proba = model.predict_proba(user_input_df)[0]
@@ -125,7 +137,9 @@ elif prediction == "Suspected":
 elif prediction == "Pathological":
     st.error("🚨 High risk of fetal complications. Immediate medical attention is recommended.")
 
-# Recommendations
+# -----------------------------
+# 📝 Recommendations
+# -----------------------------
 def get_recommendation(status):
     if status == "Normal":
         return """
@@ -150,6 +164,45 @@ def get_recommendation(status):
     else:
         return "No specific recommendation available."
 
-recommendation = get_recommendation(prediction)
 st.write("### 📝 Recommendations:")
-st.write(recommendation)
+st.write(get_recommendation(prediction))
+
+# -----------------------------
+# 🖼️ Image Upload + CNN Simulation
+# -----------------------------
+st.markdown("---")
+st.subheader("📷 Upload X-Ray or Sonography Image")
+
+uploaded_image = st.file_uploader(
+    "Upload fetal X-ray, ultrasound, or sonography image (optional)",
+    type=["jpg", "jpeg", "png", "bmp"]
+)
+
+if uploaded_image is not None:
+    img = Image.open(uploaded_image)
+    st.image(img, caption="🩻 Uploaded Medical Image", use_container_width=True)
+    st.success("✅ Image uploaded successfully!")
+
+    # Simulated CNN prediction
+    st.markdown("### 🤖 AI-Based Visual Screening (Simulated CNN Result)")
+    st.info("Analyzing uploaded image for visual anomalies (simulation).")
+
+    # Simulate CNN output probabilities
+    normal_prob = random.uniform(0.6, 0.95)
+    abnormal_prob = 1 - normal_prob
+
+    st.progress(normal_prob)
+    st.write(f"**Normal Scan Probability:** {normal_prob*100:.2f}%")
+    st.write(f"**Possible Anomaly Probability:** {abnormal_prob*100:.2f}%")
+
+    # Interpretation
+    if normal_prob > 0.8:
+        st.success("🩺 Visual screening suggests a **normal fetal scan**. No immediate abnormalities detected.")
+    elif 0.6 <= normal_prob <= 0.8:
+        st.warning("⚠️ Some irregularities detected. Recommend professional review of the scan.")
+    else:
+        st.error("🚨 Potential abnormality detected in scan. Please consult a radiologist immediately.")
+
+    st.caption("⚡ Note: This is a **simulated AI model output**. Real CNN model integration can replace this placeholder.")
+else:
+    st.warning("⚠️ No image uploaded yet. Upload X-ray or ultrasound scan for AI-based visual analysis.")
